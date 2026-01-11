@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: sendra-mongodb
+    command: mongod --quiet
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - sendra-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: sendra-backend
+    ports:
+      - "8000:8000"
+    environment:
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/sendra?authSource=admin
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:3000/callback}
+      SECRET_KEY: ${SECRET_KEY:?set-a-secret-key-for-jwt-signing}
+      LLM_PROVIDER: gemini
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      ENVIRONMENT: production
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - sendra-network
+    volumes:
+      - ./backend:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sendra-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      REACT_APP_API_URL: http://localhost/api
+    depends_on:
+      - backend
+    networks:
+      - sendra-network
+    volumes:
+      - ./frontend/src:/app/src
+    command: npm start
+
+  nginx:
+    image: nginx:alpine
+    container_name: sendra-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - sendra-network
+
+volumes:
+  mongo_data:
+
+networks:
+  sendra-network:
+    driver: bridge
