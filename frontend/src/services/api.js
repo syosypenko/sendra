@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+// Ensure base URL always includes /api to work behind nginx proxy at http://localhost
+let API_URL = process.env.REACT_APP_API_URL || '/api';
+if (!API_URL.endsWith('/api')) {
+  API_URL = `${API_URL.replace(/\/$/, '')}/api`;
+}
 
 const api = axios.create({
   baseURL: API_URL,
@@ -39,6 +43,19 @@ export const analyticsService = {
   getTopCompanies: (limit = 10) => api.get('/analytics/top-companies', { params: { limit } }),
   getTopPositions: (limit = 10) => api.get('/analytics/top-positions', { params: { limit } }),
   getStats: () => api.get('/analytics/stats')
+};
+
+export const collectionService = {
+  create: (name, emails) => {
+    console.log('📤 Sending to POST /collections:', { name, emailCount: emails.length, firstEmail: emails[0] });
+    return api.post('/collections', { name, emails });
+  },
+  list: () => api.get('/collections'),
+  get: (id) => api.get(`/collections/${id}`),
+  delete: (id) => {
+    console.log('🗑️ Deleting collection:', id);
+    return api.delete(`/collections/${id}`);
+  }
 };
 
 export default api;

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { analyticsService } from '../services/api';
+import { analyticsService, collectionService } from '../services/api';
 import NaturalLanguageSearch from '../components/NaturalLanguageSearch';
 import {
   ApplicationStatusChart,
@@ -14,9 +14,12 @@ const AdvancedDashboardPage = () => {
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchResults, setSearchResults] = useState(null);
+  const [collections, setCollections] = useState([]);
+  const [expandedCollection, setExpandedCollection] = useState(null);
 
   useEffect(() => {
     fetchDashboard();
+    fetchCollections();
   }, []);
 
   const fetchDashboard = async () => {
@@ -33,6 +36,31 @@ const AdvancedDashboardPage = () => {
 
   const handleSearchResults = (results) => {
     setSearchResults(results);
+  };
+
+  const fetchCollections = async () => {
+    try {
+      console.log('🔄 Fetching collections...');
+      const response = await collectionService.list();
+      console.log('✅ Collections fetched:', response.data);
+      setCollections(response.data || []);
+    } catch (error) {
+      console.error('❌ Error fetching collections:', error);
+    }
+  };
+
+  const handleDeleteCollection = async (collectionId) => {
+    if (window.confirm('Are you sure you want to delete this collection?')) {
+      try {
+        await collectionService.delete(collectionId);
+        console.log('✅ Collection deleted');
+        setExpandedCollection(null);
+        fetchCollections();
+      } catch (error) {
+        console.error('❌ Error deleting collection:', error);
+        alert('Failed to delete collection');
+      }
+    }
   };
 
   if (loading) {
@@ -52,7 +80,59 @@ const AdvancedDashboardPage = () => {
         </div>
 
         {/* Natural Language Search */}
-        <NaturalLanguageSearch onResults={handleSearchResults} />
+        <NaturalLanguageSearch onResults={handleSearchResults} onCollectionSaved={fetchCollections} />
+
+        {/* Saved Collections Section */}
+        <div className="mb-8 bg-white rounded-lg shadow-lg p-6">
+          <h2 className="text-2xl font-bold mb-4">Saved Collections</h2>
+          {collections && collections.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {collections.map((collection) => (
+                <div key={collection._id} className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200 hover:shadow-md transition-shadow">
+                  <div className="flex justify-between items-start mb-3">
+                    <h3 className="font-semibold text-lg text-gray-900">{collection.name}</h3>
+                    <button
+                      onClick={() => handleDeleteCollection(collection._id)}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition"
+                      title="Delete collection"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                  <div className="space-y-1 text-sm text-gray-600 mb-3">
+                    <p><span className="font-medium">Emails:</span> {collection.emails?.length || 0}</p>
+                    <p><span className="font-medium">Created:</span> {new Date(collection.created_at).toLocaleDateString()}</p>
+                  </div>
+                  <button
+                    onClick={() => setExpandedCollection(expandedCollection === collection._id ? null : collection._id)}
+                    className="text-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded transition"
+                  >
+                    {expandedCollection === collection._id ? '▼ Hide' : '▶ Show'} Emails
+                  </button>
+                  
+                  {/* Expanded emails view */}
+                  {expandedCollection === collection._id && collection.emails && collection.emails.length > 0 && (
+                    <div className="mt-4 bg-white rounded p-3 max-h-96 overflow-y-auto">
+                      <div className="space-y-2">
+                        {collection.emails.map((email, idx) => (
+                          <div key={idx} className="border-l-2 border-blue-400 pl-2 py-1">
+                            <p className="font-semibold text-gray-900 text-sm">{email.subject || '(no subject)'}</p>
+                            <p className="text-xs text-gray-600">{email.from}</p>
+                            {email.body && (
+                              <p className="text-xs text-gray-700 mt-1 line-clamp-2">{email.body.substring(0, 150)}...</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 text-center py-8">No collections saved yet. Create one using the search above!</p>
+          )}
+        </div>
 
         {/* Email Search Results - Full Table View */}
         {searchResults?.emails && searchResults.emails.length > 0 && (
@@ -98,6 +178,32 @@ const AdvancedDashboardPage = () => {
             </div>
           </div>
         )}
+
+        {/* Saved Collections */}
+        <div className="mb-8 bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold">Saved Collections</h2>
+            <button
+              onClick={fetchCollections}
+              className="text-sm text-blue-600 hover:text-blue-800"
+            >
+              Refresh
+            </button>
+          </div>
+          {collections.length === 0 ? (
+            <p className="text-gray-600 text-sm">No collections yet. Save selected emails from search to create one.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {collections.map((col) => (
+                <div key={col._id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                  <p className="text-lg font-semibold text-gray-900 truncate">{col.name}</p>
+                  <p className="text-sm text-gray-600">Emails: <span className="font-semibold">{col.emails?.length || 0}</span></p>
+                  <p className="text-xs text-gray-500 mt-1">Created: {col.created_at ? new Date(col.created_at).toLocaleDateString() : '—'}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Key Metrics */}
             <div className="flex items-center justify-between mb-4">

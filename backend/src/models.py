@@ -77,3 +77,33 @@ class NaturalLanguageQueryResponse(BaseModel):
     search_query: str
     emails: List[dict]
     summary: str
+
+
+class CollectionEmail(BaseModel):
+    gmail_id: Optional[str] = None
+    subject: Optional[str] = None
+    from_email: Optional[str] = Field(default=None, alias="from")
+    to: List[str] = []
+    body: Optional[str] = None
+    html_body: Optional[str] = None
+    # Accept string timestamps from Gmail API without strict parsing
+    received_at: Optional[str] = None
+
+    class Config:
+        populate_by_name = True
+        arbitrary_types_allowed = True
+
+
+class CollectionModel(BaseModel):
+    id: Optional[PyObjectId] = Field(default_factory=PyObjectId, alias="_id")
+    user_id: PyObjectId
+    name: str
+    emails: List[CollectionEmail] = []
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        populate_by_name = True
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: str}
+        from_attributes = True

@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
-import { gmailSyncService } from '../services/api';
+import React, { useMemo, useState } from 'react';
+import { gmailSyncService, collectionService } from '../services/api';
 
-const NaturalLanguageSearch = ({ onResults }) => {
+const NaturalLanguageSearch = ({ onResults, onCollectionSaved }) => {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [activeEmailId, setActiveEmailId] = useState(null);
+  const [collectionName, setCollectionName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState(null);
 
   const handleSearch = async () => {
     if (!prompt.trim()) return;
@@ -13,12 +18,67 @@ const NaturalLanguageSearch = ({ onResults }) => {
     try {
       const response = await gmailSyncService.naturalQuery(prompt);
       setResult(response.data);
+      setSelectedIds(new Set());
+      setActiveEmailId(null);
+      setFeedback(null);
       if (onResults) onResults(response.data);
     } catch (error) {
       console.error('Search error:', error);
       alert('Error searching emails');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleSelected = (gmailId) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(gmailId)) {
+        next.delete(gmailId);
+      } else {
+        next.add(gmailId);
+      }
+      return next;
+    });
+  };
+
+  const activeEmail = useMemo(() => {
+    if (!result?.emails || !activeEmailId) return null;
+    return result.emails.find((e) => e.gmail_id === activeEmailId || e.gmailId === activeEmailId);
+  }, [activeEmailId, result]);
+
+  const selectedEmails = useMemo(() => {
+    if (!result?.emails) return [];
+    return result.emails.filter((e) => selectedIds.has(e.gmail_id || e.gmailId));
+  }, [result, selectedIds]);
+
+  const handleSaveCollection = async () => {
+    if (!collectionName.trim()) {
+      setFeedback({ type: 'error', message: 'Please enter a collection name' });
+      return;
+    }
+    if (selectedEmails.length === 0) {
+      setFeedback({ type: 'error', message: 'Select at least one email to save' });
+      return;
+    }
+
+    setSaving(true);
+    setFeedback(null);
+    try {
+      console.log('💾 Saving collection:', { collectionName, emailCount: selectedEmails.length });
+      await collectionService.create(collectionName.trim(), selectedEmails);
+      console.log('✅ Collection saved successfully');
+      setFeedback({ type: 'success', message: 'Saved to collection' });
+      setCollectionName('');
+      if (onCollectionSaved) {
+        console.log('📢 Calling onCollectionSaved callback');
+        onCollectionSaved();
+      }
+    } catch (error) {
+      console.error('❌ Save collection error:', error);
+      setFeedback({ type: 'error', message: 'Failed to save collection' });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -85,27 +145,81 @@ const NaturalLanguageSearch = ({ onResults }) => {
             )}
           </div>
 
+          {/* Bulk Save Controls */}
+          <div className="flex flex-wrap items-center gap-3 p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <input
+              type="text"
+              placeholder="Collection name"
+              value={collectionName}
+              onChange={(e) => setCollectionName(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              onClick={handleSaveCollection}
+              disabled={saving}
+              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:bg-gray-400 transition"
+            >
+              {saving ? 'Saving...' : `Save ${selectedEmails.length} selected`}
+            </button>
+            {feedback && (
+              <span className={feedback.type === 'error' ? 'text-red-600 text-sm' : 'text-green-600 text-sm'}>
+                {feedback.message}
+              </span>
+            )}
+          </div>
+
           {/* Email Results */}
           {result.emails && result.emails.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="font-semibold text-gray-800">Matching Emails:</h3>
-              <div className="max-h-96 overflow-y-auto space-y-2">
-                {result.emails.map((email, idx) => (
-                  <div key={idx} className="p-3 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition">
-                    <div className="flex justify-between items-start gap-2">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Subjects list with checkboxes */}
+              <div className="lg:col-span-1 max-h-96 overflow-y-auto bg-white border border-gray-200 rounded-lg divide-y">
+                {result.emails.map((email, idx) => {
+                  const gmailId = email.gmail_id || email.gmailId || idx;
+                  const isSelected = selectedIds.has(gmailId);
+                  const isActive = activeEmailId === gmailId;
+                  return (
+                    <label
+                      key={gmailId}
+                      className={`flex items-start gap-3 p-3 cursor-pointer hover:bg-blue-50 transition ${isActive ? 'bg-blue-50' : ''}`}
+                      onClick={() => setActiveEmailId(gmailId)}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          toggleSelected(gmailId);
+                        }}
+                        className="mt-1"
+                      />
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm text-gray-900 truncate">{email.subject}</p>
+                        <p className="font-semibold text-sm text-gray-900 truncate">{email.subject || '(No Subject)'}</p>
                         <p className="text-xs text-gray-600 truncate">From: {email.from}</p>
-                        <p className="text-xs text-gray-500 mt-1">{email.received_at}</p>
+                        <p className="text-xs text-gray-500">{email.received_at}</p>
                       </div>
-                      {email.body && (
-                        <div className="flex-1 text-xs text-gray-700 line-clamp-2 bg-white p-2 rounded border border-gray-200">
-                          {email.body.substring(0, 200)}...
-                        </div>
-                      )}
+                    </label>
+                  );
+                })}
+              </div>
+
+              {/* Email detail pane */}
+              <div className="lg:col-span-2 bg-white border border-gray-200 rounded-lg p-4 min-h-[10rem]">
+                {activeEmail ? (
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-lg font-semibold text-gray-900">{activeEmail.subject || '(No Subject)'}</p>
+                        <p className="text-sm text-gray-600">From: {activeEmail.from}</p>
+                        <p className="text-xs text-gray-500">{activeEmail.received_at}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 p-3 bg-gray-50 rounded border border-gray-200 text-sm text-gray-800 whitespace-pre-wrap">
+                      {activeEmail.body || 'No body available'}
                     </div>
                   </div>
-                ))}
+                ) : (
+                  <p className="text-sm text-gray-500">Select an email to view its body.</p>
+                )}
               </div>
             </div>
           )}
