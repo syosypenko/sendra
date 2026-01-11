@@ -4,6 +4,25 @@ from googleapiclient.discovery import build
 from typing import List, Dict
 import base64
 from email.mime.text import MIMEText
+import re
+from html import unescape
+
+
+def strip_html(html_text: str) -> str:
+    """Remove HTML tags and decode HTML entities"""
+    if not html_text:
+        return ""
+    # Remove script and style tags
+    text = re.sub(r'<script[^>]*>.*?</script>', '', html_text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
+    # Remove HTML tags
+    text = re.sub(r'<[^>]+>', '', text)
+    # Decode HTML entities
+    text = unescape(text)
+    # Clean up whitespace and normalize
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
 
 class GmailService:
     def __init__(self, access_token: str, refresh_token: str):
@@ -54,28 +73,37 @@ class GmailService:
             
             from_email = header_dict.get('From', '')
             to_email = header_dict.get('To', '')
-            subject = header_dict.get('Subject', '')
+            subject = header_dict.get('Subject', '').strip()
             date = header_dict.get('Date', '')
             
+            # Extract body - prefer plain text, fallback to HTML converted to text
             body = ''
-            html_body = ''
             
             if 'parts' in message['payload']:
                 for part in message['payload']['parts']:
                     if part['mimeType'] == 'text/plain' and 'data' in part['body']:
                         body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
-                    elif part['mimeType'] == 'text/html' and 'data' in part['body']:
-                        html_body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+                        break
+                
+                # If no plain text, try HTML
+                if not body:
+                    for part in message['payload']['parts']:
+                        if part['mimeType'] == 'text/html' and 'data' in part['body']:
+                            html = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+                            body = strip_html(html)
+                            break
             elif 'body' in message['payload'] and 'data' in message['payload']['body']:
                 body = base64.urlsafe_b64decode(message['payload']['body']['data']).decode('utf-8')
             
+            # Clean up body - limit to first 5000 chars
+            body = body.strip()[:5000] if body else ''
+            
             return {
                 'gmail_id': message_id,
-                'from': from_email,
-                'to': [to_email] if to_email else [],
+                'from': from_email.strip(),
+                'to': [to_email.strip()] if to_email else [],
                 'subject': subject,
                 'body': body,
-                'html_body': html_body,
                 'received_at': date
             }
         except Exception as e:

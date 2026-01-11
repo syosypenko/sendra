@@ -87,6 +87,68 @@ async def create_collection(payload: dict, current_user: dict = Depends(get_curr
     return created
 
 
+@router.post("/{collection_id}/emails")
+async def add_emails_to_collection(collection_id: str, payload: dict, current_user: dict = Depends(get_current_user)) -> dict:
+    user_id = ObjectId(current_user["_id"]) if isinstance(current_user["_id"], str) else current_user["_id"]
+    emails_payload = payload.get("emails", [])
+
+    if not isinstance(emails_payload, list) or len(emails_payload) == 0:
+        raise HTTPException(status_code=400, detail="At least one email is required")
+
+    try:
+        validated_emails: List[CollectionEmail] = [CollectionEmail(**email) for email in emails_payload]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid email payload: {e}")
+
+    # Avoid duplicates by gmail_id when present
+    update_doc = {
+        "$addToSet": {
+            "emails": {"$each": [email.model_dump(by_alias=True) for email in validated_emails]}
+        },
+        "$set": {"updated_at": datetime.utcnow()}
+    }
+
+    try:
+        result = await db.get_db().collections.update_one(
+            {"_id": ObjectId(collection_id), "user_id": user_id},
+            update_doc
+        )
+    except Exception:
+        raise HTTPException(status_code=404, detail="Invalid collection id")
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    updated = await db.get_db().collections.find_one({"_id": ObjectId(collection_id), "user_id": user_id})
+    if updated and "_id" in updated:
+        updated["_id"] = str(updated["_id"])
+    if updated and "user_id" in updated:
+        updated["user_id"] = str(updated["user_id"])
+    return updated
+
+
+@router.delete("/{collection_id}/emails/{gmail_id}")
+async def delete_email_from_collection(collection_id: str, gmail_id: str, current_user: dict = Depends(get_current_user)) -> dict:
+    user_id = ObjectId(current_user["_id"]) if isinstance(current_user["_id"], str) else current_user["_id"]
+    try:
+        result = await db.get_db().collections.update_one(
+            {"_id": ObjectId(collection_id), "user_id": user_id},
+            {"$pull": {"emails": {"gmail_id": gmail_id}}, "$set": {"updated_at": datetime.utcnow()}}
+        )
+    except Exception:
+        raise HTTPException(status_code=404, detail="Invalid collection id")
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Collection not found")
+
+    updated = await db.get_db().collections.find_one({"_id": ObjectId(collection_id), "user_id": user_id})
+    if updated and "_id" in updated:
+        updated["_id"] = str(updated["_id"])
+    if updated and "user_id" in updated:
+        updated["user_id"] = str(updated["user_id"])
+    return updated
+
+
 @router.delete("/{collection_id}")
 async def delete_collection(collection_id: str, current_user: dict = Depends(get_current_user)) -> dict:
     user_id = ObjectId(current_user["_id"]) if isinstance(current_user["_id"], str) else current_user["_id"]

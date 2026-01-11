@@ -16,6 +16,7 @@ const AdvancedDashboardPage = () => {
   const [searchResults, setSearchResults] = useState(null);
   const [collections, setCollections] = useState([]);
   const [expandedCollection, setExpandedCollection] = useState(null);
+  const [activeEmailInCollection, setActiveEmailInCollection] = useState(null);
 
   useEffect(() => {
     fetchDashboard();
@@ -63,6 +64,19 @@ const AdvancedDashboardPage = () => {
     }
   };
 
+  const handleDeleteEmail = async (collectionId, gmailId) => {
+    if (!gmailId) return;
+    if (!window.confirm('Delete this email from the collection?')) return;
+    try {
+      await collectionService.deleteEmail(collectionId, gmailId);
+      console.log('✅ Email deleted from collection');
+      fetchCollections();
+    } catch (error) {
+      console.error('❌ Error deleting email:', error);
+      alert('Failed to delete email');
+    }
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center h-screen text-gray-600">Loading dashboard...</div>;
   }
@@ -80,7 +94,11 @@ const AdvancedDashboardPage = () => {
         </div>
 
         {/* Natural Language Search */}
-        <NaturalLanguageSearch onResults={handleSearchResults} onCollectionSaved={fetchCollections} />
+        <NaturalLanguageSearch
+          onResults={handleSearchResults}
+          onCollectionSaved={fetchCollections}
+          collections={collections}
+        />
 
         {/* Saved Collections Section */}
         <div className="mb-8 bg-white rounded-lg shadow-lg p-6">
@@ -112,17 +130,50 @@ const AdvancedDashboardPage = () => {
                   
                   {/* Expanded emails view */}
                   {expandedCollection === collection._id && collection.emails && collection.emails.length > 0 && (
-                    <div className="mt-4 bg-white rounded p-3 max-h-96 overflow-y-auto">
-                      <div className="space-y-2">
-                        {collection.emails.map((email, idx) => (
-                          <div key={idx} className="border-l-2 border-blue-400 pl-2 py-1">
-                            <p className="font-semibold text-gray-900 text-sm">{email.subject || '(no subject)'}</p>
-                            <p className="text-xs text-gray-600">{email.from}</p>
-                            {email.body && (
-                              <p className="text-xs text-gray-700 mt-1 line-clamp-2">{email.body.substring(0, 150)}...</p>
-                            )}
-                          </div>
-                        ))}
+                    <div className="mt-4 bg-white rounded p-3 max-h-96 overflow-y-auto border border-gray-200">
+                      <div className="space-y-3">
+                        {collection.emails.map((email, idx) => {
+                          const emailKey = email.gmail_id || idx;
+                          const isActive = activeEmailInCollection === emailKey;
+                          return (
+                            <div key={idx} className="border-b border-gray-200 pb-3 last:border-b-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <p 
+                                    className="font-bold text-blue-600 text-sm mb-1 cursor-pointer hover:underline"
+                                    onClick={() => setActiveEmailInCollection(isActive ? null : emailKey)}
+                                  >
+                                    {isActive ? '▼ ' : '▶ '}{email.subject || '(no subject)'}
+                                  </p>
+                                  <p className="text-xs text-gray-600 mb-1">
+                                    <span className="font-semibold">From:</span> {email.from || 'unknown'}
+                                  </p>
+                                  {email.received_at && (
+                                    <p className="text-xs text-gray-500 mb-2">
+                                      <span className="font-semibold">Date:</span> {new Date(email.received_at).toLocaleString()}
+                                    </p>
+                                  )}
+                                  {isActive && email.body && (
+                                    <div className="mt-2 bg-gray-50 p-3 rounded border border-gray-200">
+                                      <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">
+                                        {email.body}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                                {email.gmail_id && (
+                                  <button
+                                    onClick={() => handleDeleteEmail(collection._id, email.gmail_id)}
+                                    className="text-red-500 hover:text-red-700 text-xs"
+                                    title="Delete email from collection"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -134,8 +185,8 @@ const AdvancedDashboardPage = () => {
           )}
         </div>
 
-        {/* Email Search Results - Full Table View */}
-        {searchResults?.emails && searchResults.emails.length > 0 && (
+        {/* Email Search Results - Full Table View - HIDDEN */}
+        {false && searchResults?.emails && searchResults.emails.length > 0 && (
           <div className="mb-8 bg-white rounded-lg shadow-lg p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold">Search Results</h2>
@@ -178,32 +229,6 @@ const AdvancedDashboardPage = () => {
             </div>
           </div>
         )}
-
-        {/* Saved Collections */}
-        <div className="mb-8 bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold">Saved Collections</h2>
-            <button
-              onClick={fetchCollections}
-              className="text-sm text-blue-600 hover:text-blue-800"
-            >
-              Refresh
-            </button>
-          </div>
-          {collections.length === 0 ? (
-            <p className="text-gray-600 text-sm">No collections yet. Save selected emails from search to create one.</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {collections.map((col) => (
-                <div key={col._id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                  <p className="text-lg font-semibold text-gray-900 truncate">{col.name}</p>
-                  <p className="text-sm text-gray-600">Emails: <span className="font-semibold">{col.emails?.length || 0}</span></p>
-                  <p className="text-xs text-gray-500 mt-1">Created: {col.created_at ? new Date(col.created_at).toLocaleDateString() : '—'}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
 
         {/* Key Metrics */}
             <div className="flex items-center justify-between mb-4">

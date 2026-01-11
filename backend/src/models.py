@@ -85,7 +85,6 @@ class CollectionEmail(BaseModel):
     from_email: Optional[str] = Field(default=None, alias="from")
     to: List[str] = []
     body: Optional[str] = None
-    html_body: Optional[str] = None
     # Accept string timestamps from Gmail API without strict parsing
     received_at: Optional[str] = None
 

@@ -55,6 +55,14 @@ export const collectionService = {
   delete: (id) => {
     console.log('🗑️ Deleting collection:', id);
     return api.delete(`/collections/${id}`);
+  },
+  addEmails: (id, emails) => {
+    console.log('📤 Adding emails to collection:', { id, emailCount: emails.length });
+    return api.post(`/collections/${id}/emails`, { emails });
+  },
+  deleteEmail: (collectionId, gmailId) => {
+    console.log('🗑️ Deleting email from collection:', { collectionId, gmailId });
+    return api.delete(`/collections/${collectionId}/emails/${gmailId}`);
   }
 };
 

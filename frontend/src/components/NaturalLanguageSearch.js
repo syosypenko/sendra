@@ -1,13 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { gmailSyncService, collectionService } from '../services/api';
 
-const NaturalLanguageSearch = ({ onResults, onCollectionSaved }) => {
+const NaturalLanguageSearch = ({ onResults, onCollectionSaved, collections = [] }) => {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [activeEmailId, setActiveEmailId] = useState(null);
   const [collectionName, setCollectionName] = useState('');
+  const [selectedCollectionId, setSelectedCollectionId] = useState('');
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState(null);
 
@@ -82,6 +83,31 @@ const NaturalLanguageSearch = ({ onResults, onCollectionSaved }) => {
     }
   };
 
+  const handleSaveToExisting = async () => {
+    if (!selectedCollectionId) {
+      setFeedback({ type: 'error', message: 'Select a collection' });
+      return;
+    }
+    if (selectedEmails.length === 0) {
+      setFeedback({ type: 'error', message: 'Select at least one email to save' });
+      return;
+    }
+
+    setSaving(true);
+    setFeedback(null);
+    try {
+      console.log('💾 Adding to collection:', { selectedCollectionId, emailCount: selectedEmails.length });
+      await collectionService.addEmails(selectedCollectionId, selectedEmails);
+      setFeedback({ type: 'success', message: 'Added to collection' });
+      if (onCollectionSaved) onCollectionSaved();
+    } catch (error) {
+      console.error('❌ Save to existing error:', error);
+      setFeedback({ type: 'error', message: 'Failed to add to collection' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const examplePrompts = [
     "Show me all job offers",
     "Get me rejection letters",
@@ -149,7 +175,7 @@ const NaturalLanguageSearch = ({ onResults, onCollectionSaved }) => {
           <div className="flex flex-wrap items-center gap-3 p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
             <input
               type="text"
-              placeholder="Collection name"
+              placeholder="New collection name"
               value={collectionName}
               onChange={(e) => setCollectionName(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -161,6 +187,27 @@ const NaturalLanguageSearch = ({ onResults, onCollectionSaved }) => {
             >
               {saving ? 'Saving...' : `Save ${selectedEmails.length} selected`}
             </button>
+
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedCollectionId}
+                onChange={(e) => setSelectedCollectionId(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[200px]"
+              >
+                <option value="">Add to existing...</option>
+                {collections.map((col) => (
+                  <option key={col._id} value={col._id}>{col.name}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleSaveToExisting}
+                disabled={saving || !selectedCollectionId}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400 transition"
+              >
+                {saving ? 'Saving...' : 'Add to selected'}
+              </button>
+            </div>
+
             {feedback && (
               <span className={feedback.type === 'error' ? 'text-red-600 text-sm' : 'text-green-600 text-sm'}>
                 {feedback.message}
@@ -193,7 +240,7 @@ const NaturalLanguageSearch = ({ onResults, onCollectionSaved }) => {
                         className="mt-1"
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm text-gray-900 truncate">{email.subject || '(No Subject)'}</p>
+                        <p className="font-semibold text-sm text-blue-600 truncate cursor-pointer hover:underline">{email.subject || '(No Subject)'}</p>
                         <p className="text-xs text-gray-600 truncate">From: {email.from}</p>
                         <p className="text-xs text-gray-500">{email.received_at}</p>
                       </div>
