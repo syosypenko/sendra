@@ -2,6 +2,9 @@ Sendra – AI-Powered Email Management System
 
 Sendra is an intelligent email application tracker that uses AI to analyze job-related emails, extract opportunities, and turn them into actionable insights for learners and job seekers.
 
+<img width="1313" height="711" alt="Screenshot 2026-01-16 at 00 49 13" src="https://github.com/user-attachments/assets/7e1d4c63-a4f7-4b78-9141-be263dc7c4b1" />
+
+
 Sendra is part of a future open-source education startup focused on helping people bridge the gap between theory and real-world practice. Instead of just learning concepts, users work with real data (like emails, applications, and skill signals) to build practical experience and career readiness.
 
 Core Features
