@@ -1,15 +1,46 @@
-# Sendra - AI-Powered Email Management System
+Sendra – AI-Powered Email Management System
 
-An intelligent email application tracker that uses AI to analyze job-related emails, extract opportunities, and provide actionable insights.
+Sendra is an intelligent email application tracker that uses AI to analyze job-related emails, extract opportunities, and turn them into actionable insights for learners and job seekers.
 
-## Features
+Sendra is part of a future open-source education startup focused on helping people bridge the gap between theory and real-world practice. Instead of just learning concepts, users work with real data (like emails, applications, and skill signals) to build practical experience and career readiness.
 
-✨ **AI-Powered Search** - Natural language queries to find emails using Google Gemini or OpenAI  
-📧 **Gmail Integration** - Direct connection to Gmail API for email fetching and metadata extraction  
-📊 **Analytics Dashboard** - Real-time insights with charts and aggregations  
-🔐 **OAuth 2.0** - Secure Google authentication  
-🎨 **Modern UI** - React dashboard with Tailwind CSS  
-⚡ **Fast Backend** - FastAPI with async/await and Motor for async MongoDB  
+Core Features
+
+Smart Email Analysis
+
+Automatically detects job opportunities, interview invites, rejections, and follow-ups
+
+Extracts important data such as company name, role, skills required, and timelines
+
+Career & Skill Insights
+
+Analyzes skills based on existing emails, applications, and user history
+
+Identifies skill gaps and strengths for specific roles
+
+Interview Preparation
+
+Converts real job opportunities into interview-ready data
+
+Personalized preparation plans for future interviews
+
+Voice AI Practice & Feedback
+
+Practice interviews using Voice AI
+
+Receive post-interview feedback on answers, clarity, and confidence
+
+Email & Application Statistics
+
+Track application success rates
+
+Analyze response times, interview conversion rates, and trends
+
+Role-Specific Training & Tests
+
+AI-generated tests and exercises tailored to specific job roles
+
+Training based on real-world job requirements, not just theory  
 
 ## Tech Stack
 
